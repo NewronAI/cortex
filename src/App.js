@@ -3,7 +3,6 @@ import EnterUrlPage from "./pages/EnterUrlPage";
 import {store} from "./store";
 import {Provider} from "react-redux";
 import CrawlingStatusPage from "./pages/CrawlingStatusPage";
-import {PaperAirplaneIcon} from "@heroicons/react/24/outline";
 import LinksPage from "./pages/LinksPage";
 
 const routes = createHashRouter([

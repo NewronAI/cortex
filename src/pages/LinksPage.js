@@ -1,4 +1,4 @@
-import {ArrowPathIcon, ChevronDoubleLeftIcon} from "@heroicons/react/20/solid";
+import {ChevronDoubleLeftIcon} from "@heroicons/react/20/solid";
 import React from "react";
 import {useSelector} from "react-redux";
 import {Link} from "react-router-dom";

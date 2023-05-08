@@ -2,7 +2,7 @@ import {PaperAirplaneIcon} from '@heroicons/react/24/outline'
 import {handleFileLinkFound} from "../handlers/processHandler";
 import {useDispatch, useSelector} from "react-redux";
 import {useEffect, useState} from "react";
-import { useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router-dom";
 
 const {ipcRenderer} = window.require('electron')
 
