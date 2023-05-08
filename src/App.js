@@ -13,6 +13,7 @@ const routes = createHashRouter([
             title={"Found Links"}
             desc={"These are the links found by the crawler. This list keeps updating as the crawler finds more links."}
         />},
+    {path: "/finished", element: <LinksPage title={"Crawling Finished"} desc={"Crawling has finished. You can see the output below."} backLink={false}/>},
 ])
 
 function App() {

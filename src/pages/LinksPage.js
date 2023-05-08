@@ -3,21 +3,24 @@ import React from "react";
 import {useSelector} from "react-redux";
 import {Link} from "react-router-dom";
 
-const LinksPage = ({ title, desc, filter}) => {
+const LinksPage = ({ title, desc, filter, backLink = true}) => {
 
     const links = useSelector(state => state.appData.links);
 
     return (
         <div>
             <div className="mx-auto max-w-7xl px-6 lg:px-8 mt-6">
-                <div>
-                    <Link to={"/crawl"}>
-                        <button className={"flex gap-2 items-center justify-center text-zinc-500 text-sm"}>
-                            <ChevronDoubleLeftIcon className={"h-3"} />
-                            Back to Crawling Status
-                        </button>
-                    </Link>
-                </div>
+                {
+                    backLink &&
+                    <div>
+                        <Link to={"/crawl"}>
+                            <button className={"flex gap-2 items-center justify-center text-zinc-500 text-sm"}>
+                                <ChevronDoubleLeftIcon className={"h-3"}/>
+                                Back to Crawling Status
+                            </button>
+                        </Link>
+                    </div>
+                }
                 <div className="mx-auto max-w-2xl lg:max-w-none">
                     <div className="text-center">
                         <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
@@ -53,10 +56,10 @@ const LinksPage = ({ title, desc, filter}) => {
                                                 {link.link}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">
-                                                {link.crawled ? "Yes" : "No"}
+                                                {link.crawled ? <span className={"text-green-300"}>Yes</span> : <span className={"text-amber-300"}>No</span>}
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">
-                                                {link.skipped ? "Yes" : "No"}
+                                                {link.skipped ? <span className={"text-amber-300"}>Yes</span> : <span className={"text-green-300"}>No</span>}
                                             </td>
                                         </tr>
                                     ))}

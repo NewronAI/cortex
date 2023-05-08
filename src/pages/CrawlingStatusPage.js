@@ -2,7 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {useDispatch, useSelector} from "react-redux";
 import {ArrowPathIcon} from "@heroicons/react/20/solid";
 import {insertData} from "../store/slices/appDataSlice";
-import {Link} from "react-router-dom";
+import {Link, useNavigate} from "react-router-dom";
 
 const {ipcRenderer} = window.require('electron');
 const path = window.require('path');
@@ -11,6 +11,8 @@ const CrawlingStatusPage = () => {
 
     const currentPath = useSelector(state => state.appData.currentPath);
     const links = useSelector(state => state.appData.links);
+
+    const navigate = useNavigate();
 
     const [outputURL, setOutputURL] = useState(null);
 
@@ -35,6 +37,12 @@ const CrawlingStatusPage = () => {
             // console.log(arg)
             dispatch(insertData(arg));
         });
+
+        ipcRenderer.on('crawl-finished', (event, arg) => {
+            const basePath = path.resolve("~/cortex/output");
+            const outputURL = path.join(basePath, arg);
+            navigate("finished?outputURL=" + encodeURIComponent(outputURL));
+        })
 
     }, []);
 
