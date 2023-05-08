@@ -1,8 +1,10 @@
 {
   "name": "cortex",
+  "description": "Cortex is a powerful and efficient general-purpose web crawler designed and developed by Newron.ai. It aims to simplify the process of collecting data from various web sources, enabling users to extract valuable information with ease.",
   "version": "0.1.0",
   "private": true,
   "main": "electron/main.js",
+  "author": "Shubham Shekhar",
   "homepage": "./",
   "dependencies": {
     "@craco/craco": "^7.1.0",
