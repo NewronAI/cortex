@@ -11,6 +11,7 @@ const InitHandler = require("./src/InitiationHandler");
 function createWindow() {
     // Create the browser window.
     mainWindow = new BrowserWindow({
+        icon: path.join(__dirname, "../public/newron-logo.png"),
         width: 800,
         height: 550,
         frame: false,

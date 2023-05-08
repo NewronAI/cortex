@@ -11,6 +11,7 @@
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "electron-squirrel-startup": "^1.0.0",
     "localforage": "^1.10.0",
     "match-sorter": "^6.3.1",
     "puppeteer": "^20.1.1",
@@ -23,11 +24,13 @@
     "uuid": "^9.0.0"
   },
   "scripts": {
-    "start": "electron .",
+    "start": "electron-forge start",
     "build": "craco build",
     "test": "react-scripts test",
     "dev": "craco build && electron .",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
   "eslintConfig": {
     "extends": [
@@ -48,6 +51,11 @@
     ]
   },
   "devDependencies": {
+    "@electron-forge/cli": "^6.1.1",
+    "@electron-forge/maker-deb": "^6.1.1",
+    "@electron-forge/maker-rpm": "^6.1.1",
+    "@electron-forge/maker-squirrel": "^6.1.1",
+    "@electron-forge/maker-zip": "^6.1.1",
     "autoprefixer": "^10.4.14",
     "electron": "^24.2.0",
     "postcss": "^8.4.23",
