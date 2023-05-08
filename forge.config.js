@@ -8,7 +8,7 @@ module.exports = {
       name: '@electron-forge/maker-squirrel',
       config: {
         loadingGif: "images/fidget-spinner.gif",
-        setupIcon : "images/icon.png"
+        setupIcon : "images/icon.ico"
       },
     },
     {
