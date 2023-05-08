@@ -100,7 +100,7 @@ ipcMain.on('crawl', async (event, arg) => {
     }
 
     let crawlIndex = 0;
-    while (toCrawlLinks.length > 0 ) {
+    while (toCrawlLinks.length > 0  && crawlIndex < toCrawlLinks.length) {
 
         const toCrawlLink = toCrawlLinks[crawlIndex];
 
@@ -126,5 +126,10 @@ ipcMain.on('crawl', async (event, arg) => {
 
         crawlIndex++;
     }
+
+    console.log("crawl finished");
+    event.sender.send('crawl-finished', baseURL);
+
+    await browser.close();
 
 });

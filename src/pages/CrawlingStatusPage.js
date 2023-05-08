@@ -39,9 +39,10 @@ const CrawlingStatusPage = () => {
         });
 
         ipcRenderer.on('crawl-finished', (event, arg) => {
+            console.log("Crawling Finished", arg, "From CrawlingStatusPage.js");
             const basePath = path.resolve("~/cortex/output");
             const outputURL = path.join(basePath, arg);
-            navigate("finished?outputURL=" + encodeURIComponent(outputURL));
+            navigate("/finished?outputURL=" + encodeURIComponent(outputURL));
         })
 
     }, []);
@@ -87,7 +88,7 @@ const CrawlingStatusPage = () => {
                         </Link>
                     </dl>
                 </div>
-                <div className={"flex items-center text-center w-full"}>
+                <div className={"mt-3 flex items-center text-center w-full"}>
                     <img alt={"Newron Logo"} src={"newron-logo.png"} width={50} className={"my-2 mx-auto drop-shadow shadow-amber-50"} />
                 </div>
             </div>

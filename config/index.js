@@ -1,5 +1,5 @@
 const config = {
-    maxDepth: 2,
+    maxDepth: 1,
 }
 
 module.exports = config;
