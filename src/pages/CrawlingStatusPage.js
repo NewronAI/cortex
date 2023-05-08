@@ -1,13 +1,17 @@
-import React, {useEffect, useMemo} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {useDispatch, useSelector} from "react-redux";
 import {ArrowPathIcon} from "@heroicons/react/20/solid";
 import {insertData} from "../store/slices/appDataSlice";
 
 const {ipcRenderer} = window.require('electron');
+const path = window.require('path');
+
 const CrawlingStatusPage = () => {
 
     const currentPath = useSelector(state => state.appData.currentPath);
     const links = useSelector(state => state.appData.links);
+
+    const [outputURL, setOutputURL] = useState(null);
 
     const dispatch = useDispatch();
 
@@ -20,6 +24,11 @@ const CrawlingStatusPage = () => {
 
 
     useEffect(() => {
+
+        if(currentPath !== null) {
+            const outputPath = path.resolve("~/cortex/output");
+            setOutputURL(outputPath);
+        }
 
         ipcRenderer.on('crawl', (event, arg) => {
             // console.log(arg)
@@ -34,15 +43,17 @@ const CrawlingStatusPage = () => {
                 <div className="mx-auto max-w-2xl lg:max-w-none">
                     <div className="text-center">
                         <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Cortex is Crawling</h2>
-                        <p className="mt-4 text-md leading-8 text-gray-300">
+                        <p className="mt-2 text-md leading-8 text-gray-300">
                             The crawler has started crawling pages. You can see the status of the crawler below.
-                            <br/>
+                        </p>
+                        <p className="mt-2 text-sm leading-8 text-gray-400">
+                            Output will be saved in : <code className={"text-white"}>{outputURL}</code>
                         </p>
                     </div>
                     <div className={"w-full flex items-center"}>
                         <ArrowPathIcon className={"h-5 animate-spin mx-auto"} />
                     </div>
-                    <dl className="mt-16 grid grid-cols-1 gap-0.5 overflow-hidden rounded-2xl text-center sm:grid-cols-2 lg:grid-cols-4">
+                    <dl className="mt-8 grid grid-cols-1 gap-0.5 overflow-hidden rounded-2xl text-center sm:grid-cols-2 lg:grid-cols-4">
                         <div  className="flex flex-col bg-white/5 p-8">
                             <dt className="text-sm font-semibold leading-6 text-gray-300">Currently Crawling</dt>
                             <dd className="order-first text-3xl font-semibold tracking-tight text-white truncate">{currentPath}</dd>

@@ -49,14 +49,13 @@ class InitiationHandler {
     }
 
     doesCortexFolderExist() {
-        return fs.existsSync("~/cortex");
+        return fs.existsSync("~/cortex/output");
     }
     doesConfigFileExist() {
         return fs.existsSync("~/cortex/config.json");
     }
-
     createCortexFolder() {
-        fs.mkdirSync("~/cortex", {recursive: true});
+        fs.mkdirSync("~/cortex/output", {recursive: true});
     }
 
     createConfigFile() {

@@ -1,5 +1,6 @@
 const {ipcMain} = require('electron');
 const config = require("./../../config");
+const fs = require("fs");
 
 const puppeteer = require('puppeteer');
 const url = require("url");
@@ -8,6 +9,7 @@ const maxDepth = config.maxDepth;
 ipcMain.on('crawl', async (event, arg) => {
 
     console.log(arg);
+    const baseURL = arg;
 
     const browser = await puppeteer.launch();
 
@@ -31,7 +33,20 @@ ipcMain.on('crawl', async (event, arg) => {
         return new Promise(async (resolve, reject) => {
             try {
                 await page.goto(url);
+                await page.setDefaultTimeout(10000);
+
+                const baseHostName = new URL(baseURL).hostname;
+
+                fs.existsSync(`~/cortex/output/${baseHostName}`) || fs.mkdirSync(`~/cortex/output/${baseHostName}`, {recursive: true});
+
                 const links = await page.$$eval('a', as => as.map(a => a.href));
+                const pdfUniqueName = new Date().getTime();
+                await page.pdf({path: `~/cortex/output/${baseHostName}/page_${pdfUniqueName}.pdf`, format: 'A4'})
+
+                if(depth >= maxDepth) {
+                    resolve([]);
+                    return;
+                }
 
                 const newLinks = links;
                 // const newLinks = links.filter(link => {
