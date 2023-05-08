@@ -17,7 +17,11 @@ const {format} = require("url");
 function createWindow() {
     // Create the browser window.
     mainWindow = new BrowserWindow({
-        icon: path.join(__dirname, "../public/newron-logo.png"),
+        icon: format({
+            pathname:  "../build/newron-logo.png",
+            protocol: "file:",
+            slashes: true
+        }),
         width: 800,
         height: 550,
         frame: false,
