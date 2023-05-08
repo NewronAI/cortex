@@ -19,8 +19,11 @@ function App() {
             <div className="mx-auto max-w-7xl px-6 lg:px-8">
                 <div className="mx-auto grid max-w-2xl grid-cols-1 gap-x-8 gap-y-16 lg:max-w-none lg:grid-cols-2 justify-center flex">
                     <div className="max-w-xl lg:max-w-lg">
-                        <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Cortex by Newron</h2>
-                        <p className="mt-4 text-lg leading-8 text-gray-300">
+                        <div>
+                            <img alt={"Newron Logo"} src={"newron-logo.png"} width={100} className={"my-2"} />
+                        </div>
+                        <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl select-none">Cortex by Newron.ai</h2>
+                        <p className="mt-4 text-lg leading-8 text-gray-300 select-none">
                             Cortex is a web crawler that can be used to crawl websites and extract data from them. It is zero-config and can be used to crawl any website.
                         </p>
                         <form onSubmit={handleFormSubmit}>
@@ -39,14 +42,14 @@ function App() {
                                 />
                                 <button
                                     type="submit"
-                                    className="flex items-center rounded-md bg-indigo-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                                    className="flex items-center gap-3 rounded-md bg-indigo-500 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
                                 >
                                     Start crawling <PaperAirplaneIcon className={"h-4"} />
                                 </button>
                             </div>
                         </form>
-                    </div>
 
+                    </div>
                 </div>
             </div>
             <div className="absolute left-1/2 top-0 -z-10 -translate-x-1/2 blur-3xl xl:-top-6" aria-hidden="true">
