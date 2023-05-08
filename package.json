@@ -5,6 +5,7 @@
   "private": true,
   "main": "electron/main.js",
   "author": "Shubham Shekhar",
+  "license": "MIT",
   "homepage": "./",
   "dependencies": {
     "@craco/craco": "^7.1.0",

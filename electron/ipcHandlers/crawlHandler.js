@@ -48,7 +48,7 @@ ipcMain.on('crawl', async (event, arg) => {
                 const pdfUniqueName = new Date().getTime();
                 await page.pdf({path: `~/cortex/output/${baseHostName}/page_${pdfUniqueName}.pdf`, format: 'A4'})
 
-                console.log(url,depth);
+                console.log(url,currentDepth);
 
                 if(currentDepth >= maxDepth) {
                     resolve([]);

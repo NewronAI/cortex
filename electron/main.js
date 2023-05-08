@@ -1,12 +1,18 @@
 const main = require("electron");
 const path = require("path");
 const app = main.app;
+
+if (require('electron-squirrel-startup')) {
+    app.quit();
+}
+
 const BrowserWindow = main.BrowserWindow;
 let mainWindow;
 
 require("./ipcHandlers/main");
 
 const InitHandler = require("./src/InitiationHandler");
+const {format} = require("url");
 
 function createWindow() {
     // Create the browser window.
@@ -25,10 +31,17 @@ function createWindow() {
     });
     // and load the index.html of the app.
     console.log(__dirname);
-    mainWindow.loadFile(path.join(__dirname, "../build/index.html"));
+    mainWindow.loadFile(format({
+        pathname:  "../build/index.html",
+        protocol: "file:",
+        slashes: true
+    })).then(r => {
+        console.log(r);
+        const init = new InitHandler();
+        console.log(init.config);
+    });
 
-    const init = new InitHandler();
-    console.log(init.config);
+
 
 }
 
