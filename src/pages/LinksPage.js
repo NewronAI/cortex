@@ -46,6 +46,9 @@ const LinksPage = ({ title, desc, filter, backLink = true}) => {
                                         <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-white">
                                             Skipped
                                         </th>
+                                        <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-white">
+                                            Depth
+                                        </th>
 
                                     </tr>
                                     </thead>
@@ -60,6 +63,9 @@ const LinksPage = ({ title, desc, filter, backLink = true}) => {
                                             </td>
                                             <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">
                                                 {link.skipped ? <span className={"text-amber-300"}>Yes</span> : <span className={"text-green-300"}>No</span>}
+                                            </td>
+                                            <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-300">
+                                                {link.depth}
                                             </td>
                                         </tr>
                                     ))}
