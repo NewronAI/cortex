@@ -2,6 +2,7 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {useDispatch, useSelector} from "react-redux";
 import {ArrowPathIcon} from "@heroicons/react/20/solid";
 import {insertData} from "../store/slices/appDataSlice";
+import {Link} from "react-router-dom";
 
 const {ipcRenderer} = window.require('electron');
 const path = window.require('path');
@@ -58,19 +59,28 @@ const CrawlingStatusPage = () => {
                             <dt className="text-sm font-semibold leading-6 text-gray-300">Currently Crawling</dt>
                             <dd className="order-first text-3xl font-semibold tracking-tight text-white truncate">{currentPath}</dd>
                         </div>
-                        <div  className="flex flex-col bg-white/5 p-8">
-                            <dt className="text-sm font-semibold leading-6 text-gray-300">Found Links</dt>
-                            <dd className="order-first text-3xl font-semibold tracking-tight text-white">{links.length}</dd>
-                        </div>
-                        <div  className="flex flex-col bg-white/5 p-8">
-                            <dt className="text-sm font-semibold leading-6 text-gray-300">Crawled Links</dt>
-                            <dd className="order-first text-3xl font-semibold tracking-tight text-white">{crawledLinks.length}</dd>
-                        </div>
-                        <div  className="flex flex-col bg-white/5 p-8">
-                            <dt className="text-sm font-semibold leading-6 text-gray-300">Skipped Links</dt>
-                            <dd className="order-first text-3xl font-semibold tracking-tight text-white">{skippedLinks.length}</dd>
-                        </div>
+                        <Link to={"/links"}>
+                            <div  className="flex flex-col bg-white/5 p-8">
+                                <dt className="text-sm font-semibold leading-6 text-gray-300">Found Links</dt>
+                                <dd className="order-first text-3xl font-semibold tracking-tight text-white">{links.length}</dd>
+                            </div>
+                        </Link>
+                        <Link to={"/links"}>
+                            <div  className="flex flex-col bg-white/5 p-8">
+                                <dt className="text-sm font-semibold leading-6 text-gray-300">Crawled Links</dt>
+                                <dd className="order-first text-3xl font-semibold tracking-tight text-white">{crawledLinks.length}</dd>
+                            </div>
+                        </Link>
+                        <Link to={"/links"}>
+                            <div  className="flex flex-col bg-white/5 p-8">
+                                <dt className="text-sm font-semibold leading-6 text-gray-300">Skipped Links</dt>
+                                <dd className="order-first text-3xl font-semibold tracking-tight text-white">{skippedLinks.length}</dd>
+                            </div>
+                        </Link>
                     </dl>
+                </div>
+                <div className={"flex items-center text-center w-full"}>
+                    <img alt={"Newron Logo"} src={"newron-logo.png"} width={50} className={"my-2 mx-auto drop-shadow shadow-amber-50"} />
                 </div>
             </div>
         </div>

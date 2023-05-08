@@ -4,10 +4,15 @@ import {store} from "./store";
 import {Provider} from "react-redux";
 import CrawlingStatusPage from "./pages/CrawlingStatusPage";
 import {PaperAirplaneIcon} from "@heroicons/react/24/outline";
+import LinksPage from "./pages/LinksPage";
 
 const routes = createHashRouter([
     {path: "/", element: <EnterUrlPage />},
     {path: "/crawl", element: <CrawlingStatusPage />},
+    {path: "/links", element: <LinksPage
+            title={"Found Links"}
+            desc={"These are the links found by the crawler. This list keeps updating as the crawler finds more links."}
+        />},
 ])
 
 function App() {
