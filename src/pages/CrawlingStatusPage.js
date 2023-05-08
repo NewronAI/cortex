@@ -1,12 +1,15 @@
 import React, {useEffect, useMemo} from 'react';
-import {useSelector} from "react-redux";
+import {useDispatch, useSelector} from "react-redux";
 import {ArrowPathIcon} from "@heroicons/react/20/solid";
+import {insertData} from "../store/slices/appDataSlice";
 
-const ipcRenderer = window.ipcRenderer;
+const {ipcRenderer} = window.require('electron');
 const CrawlingStatusPage = () => {
 
     const currentPath = useSelector(state => state.appData.currentPath);
     const links = useSelector(state => state.appData.links);
+
+    const dispatch = useDispatch();
 
     const crawledLinks = useMemo(() => {
         return links.filter(link => link.crawled);
@@ -16,13 +19,12 @@ const CrawlingStatusPage = () => {
     }, [links]);
 
 
-
     useEffect(() => {
 
-        // ipcRenderer.on('crawl', (event, arg) => {
-        //
-        // });
-
+        ipcRenderer.on('crawl', (event, arg) => {
+            // console.log(arg)
+            dispatch(insertData(arg));
+        });
 
     }, []);
 
