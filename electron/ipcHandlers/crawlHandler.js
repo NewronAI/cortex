@@ -1,11 +1,15 @@
 const {ipcMain} = require('electron');
 const config = require("./../../config");
 const fs = require("fs");
-
+const path = require("path");
 const puppeteer = require('puppeteer');
 const url = require("url");
 
-const maxDepth = config.maxDepth;
+const InitiationHandler = require("./../src/InitiationHandler");
+const os = require("os");
+const initHandle = new InitiationHandler();
+
+const maxDepth = initHandle.getConfig().maxDepth;
 ipcMain.on('crawl', async (event, arg) => {
 
     console.log(arg);
@@ -42,11 +46,11 @@ ipcMain.on('crawl', async (event, arg) => {
                 await page.waitForSelector('a', {timeout: 10000});
 
 
-                fs.existsSync(`~/cortex/output/${baseHostName}`) || fs.mkdirSync(`~/cortex/output/${baseHostName}`, {recursive: true});
+                fs.existsSync(path.resolve(os.homedir()+`/cortex/output/${baseHostName}`)) || fs.mkdirSync(path.resolve(os.homedir()+`/cortex/output/${baseHostName}`), {recursive: true});
 
                 const links = await page.$$eval('a', as => as.map(a => a.href));
                 const pdfUniqueName = new Date().getTime();
-                await page.pdf({path: `~/cortex/output/${baseHostName}/page_${pdfUniqueName}.pdf`, format: 'A4'})
+                await page.pdf({path: path.resolve(os.homedir()+`/cortex/output/${baseHostName}/page_${pdfUniqueName}.pdf`), format: 'A4'});
 
                 console.log(url,currentDepth);
 

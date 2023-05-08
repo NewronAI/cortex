@@ -1,6 +1,9 @@
 
 const fs = require("fs");
-const {v4: uuidv4} = require("uuid");
+
+const {resolve} = require("path");
+const config = require("../../config");
+const os = require("os");
 
 class InitiationHandler {
     constructor(props) {
@@ -22,60 +25,28 @@ class InitiationHandler {
             this.updateConfigFile({...this.config, initiation: {...this.config.initiation, last: new Date().toISOString()}});
         }
         else {
-            this.config = {
-                "user": {
-                    "name": "Public User",
-                    "email": "public@localhost",
-                    "uuid": uuidv4()
-                },
-                "project": [
-                    {
-                        "name": "Project 1",
-                        "description": "Project 1 description",
-                        "baseUrl" : "http://localhost:8080",
-                        "visitedUrls": [],
-                        "created": new Date().toISOString(),
-                    }
-                ],
-                "initiation": {
-                    "date": new Date().toISOString(),
-                    "last": new Date().toISOString(),
-                }
-            }
-
+            this.config = config.default;
             this.updateConfigFile(this.config);
         }
 
     }
 
     doesCortexFolderExist() {
-        return fs.existsSync("~/cortex/output");
+        return fs.existsSync(resolve(os.homedir()+"/cortex/output"));
     }
     doesConfigFileExist() {
-        return fs.existsSync("~/cortex/config.json");
+        return fs.existsSync(resolve(os.homedir()+"/cortex/config.json"));
     }
     createCortexFolder() {
-        fs.mkdirSync("~/cortex/output", {recursive: true});
+        fs.mkdirSync(resolve(os.homedir()+"/cortex/output"), {recursive: true});
     }
 
     createConfigFile() {
-        fs.writeFileSync("~/cortex/config.json", JSON.stringify({
-            "user": {
-                "name": "user",
-                "email": "user@localhost"
-            },
-            "project": {
-                "name": "project",
-                "description": "project description"
-            },
-            "initiation": {
-                "date": new Date().toISOString()
-            }
-        }));
+        fs.writeFileSync(resolve(os.homedir()+"/cortex/config.json"), JSON.stringify(config.default, null, 4));
     }
 
     readConfigFile() {
-        let content = fs.readFileSync("~/cortex/config.json");
+        let content = fs.readFileSync(resolve(os.homedir()+"/cortex/config.json"));
         if(typeof content !== "string") {
             content = content.toString();
         }
@@ -84,7 +55,7 @@ class InitiationHandler {
 
     updateConfigFile(config) {
         this.config = config;
-        fs.writeFileSync("~/cortex/config.json", JSON.stringify(config));
+        fs.writeFileSync(resolve(os.homedir()+"/cortex/config.json"), JSON.stringify(config));
     }
 
     getConfig() {
