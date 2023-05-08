@@ -6,7 +6,7 @@ const config = require("../../config");
 const os = require("os");
 
 class InitiationHandler {
-    constructor(props) {
+    constructor() {
 
         let configExists = true;
 
@@ -55,7 +55,7 @@ class InitiationHandler {
 
     updateConfigFile(config) {
         this.config = config;
-        fs.writeFileSync(resolve(os.homedir()+"/cortex/config.json"), JSON.stringify(config));
+        fs.writeFileSync(resolve(os.homedir()+"/cortex/config.json"), JSON.stringify(config, null, 4));
     }
 
     getConfig() {

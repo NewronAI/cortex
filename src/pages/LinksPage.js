@@ -1,11 +1,23 @@
 import {ChevronDoubleLeftIcon} from "@heroicons/react/20/solid";
-import React from "react";
+import React, {useEffect, useState} from "react";
 import {useSelector} from "react-redux";
 import {Link} from "react-router-dom";
+
+const path = window.require('path');
+const os = window.require("os");
+
 
 const LinksPage = ({ title, desc, filter, backLink = true}) => {
 
     const links = useSelector(state => state.appData.links);
+    const [outputURL, setOutputURL] = useState(null);
+
+    useEffect(() => {
+        if(outputURL === null) {
+            const outputPath = path.resolve(os.homedir() + "/cortex/output");
+            setOutputURL(outputPath);
+        }
+    }, []);
 
     return (
         <div>
@@ -29,6 +41,12 @@ const LinksPage = ({ title, desc, filter, backLink = true}) => {
                         <p className="mt-2 text-md leading-8 text-gray-300">
                             {desc}
                         </p>
+                        {
+                            outputURL &&
+                            <p className="mt-2 text-sm leading-8 text-gray-400">
+                                Outputs are saved in : <code className={"text-white"}>{outputURL}</code>
+                            </p>
+                        }
                     </div>
 
                     <div className="mt-8 flow-root">

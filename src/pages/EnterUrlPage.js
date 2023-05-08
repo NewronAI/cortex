@@ -4,7 +4,11 @@ import {useDispatch, useSelector} from "react-redux";
 import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 
-const {ipcRenderer} = window.require('electron')
+const {ipcRenderer} = window.require('electron');
+
+const path = window.require('path');
+const os = window.require("os");
+
 
 function App() {
 
@@ -26,7 +30,19 @@ function App() {
             dispatch(data);
         }
 
+        function handleCrawlFailed(){
+            setLoading(false);
+        }
+
+        ipcRenderer.once('crawl-finished', (event, arg) => {
+            console.log("Crawling Finished", arg, "From CrawlingStatusPage.js");
+            const basePath = path.resolve(os.homedir()+"/cortex/output");
+            const outputURL = path.join(basePath, arg);
+            navigate("/finished?outputURL=" + encodeURIComponent(outputURL));
+        });
+
         ipcRenderer.once('crawl', handleFileLinkFound(overLoadedDispatch));
+        ipcRenderer.once("crawl-failed",handleCrawlFailed);
     }
 
     useEffect(() => {
