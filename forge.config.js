@@ -1,10 +1,15 @@
 module.exports = {
-  packagerConfig: {},
+  packagerConfig: {
+    icon : "images/icon"
+  },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
-      config: {},
+      config: {
+        loadingGif: "images/fidget-spinner.gif",
+        setupIcon : "images/icon.png"
+      },
     },
     {
       name: '@electron-forge/maker-zip',
