@@ -4,7 +4,7 @@ const app = main.app;
 const BrowserWindow = main.BrowserWindow;
 let mainWindow;
 
-// require("ipcHandlers");
+require("./ipcHandlers/main");
 
 const InitHandler = require("./src/InitiationHandler");
 
