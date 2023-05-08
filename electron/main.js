@@ -14,8 +14,9 @@ function createWindow() {
         width: 800,
         height: 500,
         frame: false,
+        resizable: false,
         // kiosk: true,
-        alwaysOnTop: true,
+        // alwaysOnTop: true,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
