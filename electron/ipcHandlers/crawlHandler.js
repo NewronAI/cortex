@@ -8,6 +8,7 @@ const os = require("os");
 const initHandle = new InitiationHandler();
 const request_client = require('request-promise-native');
 
+
 // add stealth plugin and use defaults (all evasion techniques)
 puppeteer.use(StealthPlugin())
 
@@ -123,6 +124,7 @@ ipcMain.on('crawl', async (event, arg) => {
                         }
                     }
 
+                    await page.waitForTimeout(crawlInterval);
                     await page.close();
                     resolve(newLinksToCrawl);
 
