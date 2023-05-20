@@ -9,6 +9,8 @@ const config = {
         },
 
         "maxDepth": 1,
+        "headless": true,
+        "crawlInterval": 1200,
 
         "project": [
             {
