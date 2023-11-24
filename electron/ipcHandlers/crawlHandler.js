@@ -14,6 +14,7 @@ puppeteer.use(StealthPlugin())
 
 const maxDepth = initHandle.getConfig().maxDepth;
 const headless = initHandle.getConfig().headless;
+const boundToBaseUrl = initHandle.getConfig().boundToBaseUrl;
 const crawlInterval = initHandle.getConfig().crawlInterval;
 
 ipcMain.on('crawl', async (event, arg) => {
@@ -44,6 +45,18 @@ ipcMain.on('crawl', async (event, arg) => {
             return !!toCrawlLinks.find(toCrawlLink => toCrawlLink.link === link && toCrawlLink.crawled);
         }
 
+        function isBoundToBaseUrl(baseURL, link, boundToBaseUrl) {
+            if (boundToBaseUrl) {
+
+                const parsedBaseURL = new URL(baseURL);
+                const parsedLink = new URL(link);
+
+                return parsedBaseURL.origin === parsedLink.origin;
+
+            }
+            return true;
+        }
+
         function crawlPage(url, currentDepth) {
             return new Promise(async (resolve, reject) => {
                 let page;
@@ -71,7 +84,8 @@ ipcMain.on('crawl', async (event, arg) => {
 
                     await page.goto(url, {timeout: 10000});
 
-                    const baseHostName = new URL(baseURL).hostname;
+                    const baseParsedURL = new URL(baseURL);
+                    const baseHostName = baseParsedURL.hostname;
 
                     let pageLoadSelectors = ['a','p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img', 'div', 'li', 'ul', 'ol', 'table', 'tr', 'td', 'th', 'nav', 'header', 'footer', 'section', 'article', 'aside', 'main', 'iframe', 'video', 'audio', 'canvas', 'svg', 'address', 'blockquote', 'cite', 'code', 'pre', 'em', 'strong', 'i', 'b', 'u', 's', 'small', 'sub', 'sup', 'mark', 'br', 'hr', 'meter', 'progress', 'details', 'summary', 'menuitem', 'menu', 'dialog', 'slot', 'template', 'acronym',  'command', 'content', 'dir', 'element', ]
                     let pageLoadPromises = pageLoadSelectors.map(selector => page.waitForSelector(selector, {timeout: 10000}));
@@ -84,7 +98,7 @@ ipcMain.on('crawl', async (event, arg) => {
 
                     const links = await page.$$eval('a', as => as.map(a => a.href));
                     const pdfUniqueName = new Date().getTime();
-                    await page.pdf({
+                    await page.pdf({ 
                         path: path.resolve(os.homedir() + `/cortex/output/${baseHostName}/page_${pdfUniqueName}.pdf`),
                         format: 'A4'
                     });
@@ -115,7 +129,7 @@ ipcMain.on('crawl', async (event, arg) => {
                             continue;
                         }
 
-                        if (!isAlreadyFound(cleanLink)) {
+                        if (!isAlreadyFound(cleanLink) && isBoundToBaseUrl(baseURL, cleanLink, boundToBaseUrl)) {
                             newLinksToCrawl.push({
                                 depth: currentDepth + 1,
                                 link: cleanLink,

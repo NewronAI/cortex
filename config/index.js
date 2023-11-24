@@ -9,6 +9,7 @@ const config = {
         },
 
         "maxDepth": 1,
+        "boundToBaseUrl": true,
         "headless": true,
         "crawlInterval": 1200,
 
