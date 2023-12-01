@@ -4,6 +4,7 @@ import {ArrowPathIcon} from "@heroicons/react/20/solid";
 import {insertData} from "../store/slices/appDataSlice";
 import {Link, useNavigate} from "react-router-dom";
 
+import {shell} from "electron";
 
 const {ipcRenderer} = window.require('electron');
 const path = window.require('path');
@@ -52,7 +53,12 @@ const CrawlingStatusPage = () => {
                             The crawler has started crawling pages. You can see the status of the crawler below.
                         </p>
                         <p className="mt-2 text-sm leading-8 text-gray-400">
-                            Output will be saved in : <code className={"text-white"}>{outputURL}</code>
+                            Output will be saved in : <code className={"text-white"}>{outputURL}</code>&nbsp;&nbsp;
+                            <button onClick={() => {
+                                shell.showItemInFolder(outputURL);
+                            }} className={"text-indigo-400"}>
+                                Open Folder
+                            </button>
                         </p>
                     </div>
                     <div className={"w-full flex items-center"}>

@@ -12,6 +12,7 @@ const config = {
         "boundToBaseUrl": true,
         "headless": true,
         "crawlInterval": 1200,
+        "maxTimeout": 10000,
 
         "project": [
             {

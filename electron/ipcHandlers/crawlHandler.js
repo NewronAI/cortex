@@ -14,6 +14,7 @@ puppeteer.use(StealthPlugin())
 
 const maxDepth = initHandle.getConfig().maxDepth;
 const headless = initHandle.getConfig().headless;
+const maxTimeout = initHandle.getConfig().maxTimeout;
 const boundToBaseUrl = initHandle.getConfig().boundToBaseUrl;
 const crawlInterval = initHandle.getConfig().crawlInterval;
 
@@ -82,7 +83,7 @@ ipcMain.on('crawl', async (event, arg) => {
                         }
                     });
 
-                    await page.goto(url, {timeout: 10000});
+                    await page.goto(url, {timeout: maxTimeout || 30000});
 
                     const baseParsedURL = new URL(baseURL);
                     const baseHostName = baseParsedURL.hostname;
