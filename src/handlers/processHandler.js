@@ -1,13 +1,9 @@
-import {insertData} from "../store/slices/appDataSlice";
+import { updateProgress } from '../store/slices/appDataSlice';
 
-export const handleFileLinkFound = (dispatch) => (event,appData) => {
-
-    const currentPath = appData.currentPath;
-    const links = appData.links;
-
-    dispatch(insertData({
-        currentPath: currentPath,
-        links: links
-    }));
-}
-
+export const handleCrawlProgress = (dispatch) => (data) => {
+  dispatch(updateProgress({
+    currentPath: data.currentPath,
+    links: data.links,
+    stats: data.stats,
+  }));
+};

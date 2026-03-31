@@ -1,192 +1,274 @@
-const {ipcMain} = require('electron');
-const fs = require("fs");
-const path = require("path");
-const puppeteer = require('puppeteer-extra')
-const StealthPlugin = require('puppeteer-extra-plugin-stealth')
-const InitiationHandler = require("./../src/InitiationHandler");
-const os = require("os");
-const initHandle = new InitiationHandler();
-const request_client = require('request-promise-native');
+const { ipcMain } = require('electron');
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+const http = require('http');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+const InitiationHandler = require('../src/InitiationHandler');
+const os = require('os');
 
+puppeteer.use(StealthPlugin());
 
-// add stealth plugin and use defaults (all evasion techniques)
-puppeteer.use(StealthPlugin())
+let activeBrowser = null;
+let crawlAborted = false;
 
-const maxDepth = initHandle.getConfig().maxDepth;
-const headless = initHandle.getConfig().headless;
-const maxTimeout = initHandle.getConfig().maxTimeout;
-const boundToBaseUrl = initHandle.getConfig().boundToBaseUrl;
-const crawlInterval = initHandle.getConfig().crawlInterval;
+ipcMain.on('stop-crawl', async () => {
+  crawlAborted = true;
+  if (activeBrowser) {
+    try {
+      await activeBrowser.close();
+    } catch (_) {
+      // browser may already be closed
+    }
+    activeBrowser = null;
+  }
+});
 
 ipcMain.on('crawl', async (event, arg) => {
+  const initHandle = new InitiationHandler();
+  const config = initHandle.getConfig();
 
-    console.log("Initial URL Received: ",arg);
+  const maxDepth = config.maxDepth ?? 1;
+  const headless = config.headless ?? true;
+  const maxTimeout = config.maxTimeout ?? 30000;
+  const boundToBaseUrl = config.boundToBaseUrl ?? true;
+  const crawlInterval = config.crawlInterval ?? 1200;
+  const concurrency = config.concurrency ?? 3;
+  const excludePatterns = config.excludePatterns || [];
+  const maxPages = config.maxPages ?? 100;
 
-    try {
-        const parsedBaseURL = new URL(arg);
-        const baseURL = parsedBaseURL.origin + parsedBaseURL.pathname;
+  crawlAborted = false;
 
-        const browser = await puppeteer.launch({
-            headless: headless
+  console.log('Crawl started:', arg);
+
+  try {
+    const parsedBaseURL = new URL(arg);
+    const baseURL = parsedBaseURL.origin + parsedBaseURL.pathname;
+    const baseHostName = parsedBaseURL.hostname;
+    const outputDir = path.resolve(os.homedir(), 'cortex', 'output', baseHostName);
+
+    activeBrowser = await puppeteer.launch({
+      headless: headless ? 'new' : false,
+    });
+
+    const toCrawlLinks = [{
+      depth: 0,
+      link: baseURL,
+      crawled: false,
+      skipped: false,
+    }];
+
+    const visitedSet = new Set([baseURL]);
+    const startTime = Date.now();
+
+    function matchesExcludePattern(url) {
+      return excludePatterns.some(pattern => {
+        try {
+          return new RegExp(pattern).test(url);
+        } catch {
+          return url.includes(pattern);
+        }
+      });
+    }
+
+    function isBound(link) {
+      if (!boundToBaseUrl) return true;
+      try {
+        return new URL(link).origin === parsedBaseURL.origin;
+      } catch {
+        return false;
+      }
+    }
+
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function downloadPdf(url, destPath) {
+      return new Promise((resolve, reject) => {
+        const client = url.startsWith('https') ? https : http;
+        client.get(url, (res) => {
+          if (res.statusCode !== 200) {
+            reject(new Error(`HTTP ${res.statusCode}`));
+            return;
+          }
+          const stream = fs.createWriteStream(destPath);
+          res.pipe(stream);
+          stream.on('finish', () => { stream.close(); resolve(); });
+          stream.on('error', reject);
+        }).on('error', reject);
+      });
+    }
+
+    async function crawlPage(url, currentDepth) {
+      if (crawlAborted) return [];
+
+      let page;
+      try {
+        page = await activeBrowser.newPage();
+        await page.setRequestInterception(true);
+
+        page.on('request', request => {
+          if (crawlAborted) {
+            request.abort().catch(() => {});
+            return;
+          }
+          if (request.url().endsWith('.pdf')) {
+            fs.mkdirSync(outputDir, { recursive: true });
+            const pdfName = `pdf_${Date.now()}.pdf`;
+            downloadPdf(request.url(), path.join(outputDir, pdfName)).catch(() => {});
+            request.abort().catch(() => {});
+          } else {
+            request.continue().catch(() => {});
+          }
         });
 
-        let depth = 0;
+        await page.goto(url, {
+          timeout: maxTimeout,
+          waitUntil: 'domcontentloaded',
+        });
 
-        const toCrawlLinks = [{
-            depth: depth,
-            link: baseURL,
-            crawled: false
-        }];
+        await Promise.race([
+          page.waitForSelector('body', { timeout: 5000 }),
+          delay(5000),
+        ]);
 
-        function isAlreadyFound(link) {
-            return !!toCrawlLinks.find(toCrawlLink => toCrawlLink.link === link);
+        // Save page as PDF
+        fs.mkdirSync(outputDir, { recursive: true });
+        const pdfName = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`;
+        await page.pdf({
+          path: path.join(outputDir, pdfName),
+          format: 'A4',
+        });
+
+        if (currentDepth >= maxDepth) {
+          await page.close();
+          return [];
         }
 
-        function isCrawled(link) {
-            return !!toCrawlLinks.find(toCrawlLink => toCrawlLink.link === link && toCrawlLink.crawled);
-        }
+        // Extract links
+        const rawLinks = await page.$$eval('a', as => as.map(a => a.href).filter(Boolean));
 
-        function isBoundToBaseUrl(baseURL, link, boundToBaseUrl) {
-            if (boundToBaseUrl) {
+        const newLinks = [];
+        for (const link of rawLinks) {
+          try {
+            const parsed = new URL(link);
+            // Skip non-http(s) links, anchors, mailto, tel, javascript, etc.
+            if (!parsed.protocol.startsWith('http')) continue;
+            const cleanLink = parsed.origin + parsed.pathname;
 
-                const parsedBaseURL = new URL(baseURL);
-                const parsedLink = new URL(link);
-
-                return parsedBaseURL.origin === parsedLink.origin;
-
+            if (!visitedSet.has(cleanLink) && isBound(cleanLink) && !matchesExcludePattern(cleanLink)) {
+              visitedSet.add(cleanLink);
+              newLinks.push({
+                depth: currentDepth + 1,
+                link: cleanLink,
+                crawled: false,
+                skipped: false,
+              });
             }
-            return true;
+          } catch {
+            // Invalid URL, skip
+          }
         }
 
-        function crawlPage(url, currentDepth) {
-            return new Promise(async (resolve, reject) => {
-                let page;
-                try {
-                    page = await browser.newPage();
-
-                    await page.setRequestInterception(true);
-
-                    page.on('request', request => {
-                        if (request.url().endsWith('.pdf')) {
-                            request_client({
-                                uri: request.url(),
-                                encoding: null,
-                                headers: {
-                                    'Content-type': 'applcation/pdf',
-                                },
-                            }).then(response => {
-                                console.log(response); // PDF Buffer
-                                request.abort();
-                            });
-                        } else {
-                            request.continue();
-                        }
-                    });
-
-                    await page.goto(url, {timeout: maxTimeout || 30000});
-
-                    const baseParsedURL = new URL(baseURL);
-                    const baseHostName = baseParsedURL.hostname;
-
-                    let pageLoadSelectors = ['a','p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'img', 'div', 'li', 'ul', 'ol', 'table', 'tr', 'td', 'th', 'nav', 'header', 'footer', 'section', 'article', 'aside', 'main', 'iframe', 'video', 'audio', 'canvas', 'svg', 'address', 'blockquote', 'cite', 'code', 'pre', 'em', 'strong', 'i', 'b', 'u', 's', 'small', 'sub', 'sup', 'mark', 'br', 'hr', 'meter', 'progress', 'details', 'summary', 'menuitem', 'menu', 'dialog', 'slot', 'template', 'acronym',  'command', 'content', 'dir', 'element', ]
-                    let pageLoadPromises = pageLoadSelectors.map(selector => page.waitForSelector(selector, {timeout: 10000}));
-                    // Also added this for pdf download
-                    pageLoadPromises.push(page.waitForNetworkIdle());
-
-                    await Promise.any(pageLoadPromises);
-
-                    fs.existsSync(path.resolve(os.homedir() + `/cortex/output/${baseHostName}`)) || fs.mkdirSync(path.resolve(os.homedir() + `/cortex/output/${baseHostName}`), {recursive: true});
-
-                    const links = await page.$$eval('a', as => as.map(a => a.href));
-                    const pdfUniqueName = new Date().getTime();
-                    await page.pdf({ 
-                        path: path.resolve(os.homedir() + `/cortex/output/${baseHostName}/page_${pdfUniqueName}.pdf`),
-                        format: 'A4'
-                    });
-
-                    console.log(url, currentDepth);
-
-                    if (currentDepth >= maxDepth) {
-                        resolve([]);
-                        return;
-                    }
-
-                    let newLinksToCrawl = [];
-
-                    for (let i = 0; i < links.length; i++) {
-                        const link = links[i];
-
-                        let cleanLink = link;
-
-                        if (!link) {
-                            continue;
-                        }
-
-                        try {
-                            let parseURL = new URL(link);
-                            cleanLink = parseURL.origin + parseURL.pathname;
-                        } catch (e) {
-                            console.log(e);
-                            continue;
-                        }
-
-                        if (!isAlreadyFound(cleanLink) && isBoundToBaseUrl(baseURL, cleanLink, boundToBaseUrl)) {
-                            newLinksToCrawl.push({
-                                depth: currentDepth + 1,
-                                link: cleanLink,
-                                crawled: false
-                            });
-                        }
-                    }
-
-                    await page.waitForTimeout(crawlInterval);
-                    await page.close();
-                    resolve(newLinksToCrawl);
-
-                } catch (e) {
-                    try {
-                        await page.close();
-                    } catch (e) {
-                        console.log(e);
-                    }
-                    reject(e);
-                }
-            });
-        }
-
-        let crawlIndex = 0;
-        while (toCrawlLinks.length > 0 && crawlIndex < toCrawlLinks.length) {
-
-            const toCrawlLink = toCrawlLinks[crawlIndex];
-
-            if (toCrawlLink.depth > maxDepth) {
-                toCrawlLinks[crawlIndex].skipped = true;
-            } else if (!isCrawled(toCrawlLink.link)) {
-                try {
-                    const newLinks = await crawlPage(toCrawlLink.link, toCrawlLink.depth);
-                    toCrawlLinks.push(...newLinks);
-                    toCrawlLinks[crawlIndex].crawled = true;
-                } catch (e) {
-                    console.log(e);
-                    toCrawlLinks[crawlIndex].skipped = true;
-                }
-            }
-
-            event.reply('crawl', {
-                currentPath: toCrawlLink.link,
-                links: toCrawlLinks
-            });
-
-            crawlIndex++;
-        }
-
-        console.log("crawl finished");
-        event.sender.send('crawl-finished', baseURL);
-
-        await browser.close();
-    }
-    catch (e) {
-        event.sender.send("crawl-failed", e.message);
+        await delay(crawlInterval);
+        await page.close();
+        return newLinks;
+      } catch (e) {
+        if (page) await page.close().catch(() => {});
+        throw e;
+      }
     }
 
+    function emitProgress(currentLink) {
+      const crawled = toCrawlLinks.filter(l => l.crawled).length;
+      const skipped = toCrawlLinks.filter(l => l.skipped).length;
+
+      event.reply('crawl-progress', {
+        currentPath: currentLink,
+        links: toCrawlLinks,
+        stats: {
+          total: toCrawlLinks.length,
+          crawled,
+          skipped,
+          pending: toCrawlLinks.length - crawled - skipped,
+          elapsed: Date.now() - startTime,
+        },
+      });
+    }
+
+    // BFS crawl with concurrency
+    let crawlIndex = 0;
+    let crawledCount = 0;
+
+    while (crawlIndex < toCrawlLinks.length && !crawlAborted) {
+      // Collect a batch of uncrawled/unskipped links
+      const batch = [];
+      const batchIndices = [];
+
+      while (batch.length < concurrency && crawlIndex < toCrawlLinks.length) {
+        const item = toCrawlLinks[crawlIndex];
+
+        if (item.depth > maxDepth || crawledCount >= maxPages) {
+          toCrawlLinks[crawlIndex].skipped = true;
+          crawlIndex++;
+          continue;
+        }
+
+        batch.push(crawlPage(item.link, item.depth));
+        batchIndices.push(crawlIndex);
+        crawlIndex++;
+      }
+
+      if (batch.length === 0) break;
+
+      const results = await Promise.allSettled(batch);
+
+      for (let i = 0; i < results.length; i++) {
+        const idx = batchIndices[i];
+        if (results[i].status === 'fulfilled') {
+          const newLinks = results[i].value;
+          toCrawlLinks.push(...newLinks);
+          toCrawlLinks[idx].crawled = true;
+          crawledCount++;
+        } else {
+          toCrawlLinks[idx].skipped = true;
+          toCrawlLinks[idx].error = results[i].reason?.message || 'Unknown error';
+          console.error(`Failed: ${toCrawlLinks[idx].link} - ${toCrawlLinks[idx].error}`);
+        }
+      }
+
+      emitProgress(toCrawlLinks[batchIndices[batchIndices.length - 1]]?.link);
+    }
+
+    const aborted = crawlAborted;
+    console.log(aborted ? 'Crawl aborted' : 'Crawl finished');
+
+    event.sender.send('crawl-finished', {
+      baseURL,
+      aborted,
+      outputDir,
+      stats: {
+        total: toCrawlLinks.length,
+        crawled: toCrawlLinks.filter(l => l.crawled).length,
+        skipped: toCrawlLinks.filter(l => l.skipped).length,
+        elapsed: Date.now() - startTime,
+      },
+    });
+
+    if (activeBrowser) {
+      await activeBrowser.close().catch(() => {});
+      activeBrowser = null;
+    }
+  } catch (e) {
+    console.error('Crawl failed:', e);
+    event.sender.send('crawl-failed', e.message);
+    if (activeBrowser) {
+      await activeBrowser.close().catch(() => {});
+      activeBrowser = null;
+    }
+  }
+
+  crawlAborted = false;
 });

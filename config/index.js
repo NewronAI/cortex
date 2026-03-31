@@ -1,34 +1,29 @@
-const {v4: uuidV4} = require("uuid");
+const { v4: uuidV4 } = require('uuid');
 
 const config = {
-    default : {
-        "user": {
-            "name": "Public User",
-            "email": "public@localhost",
-            "uuid": uuidV4()
-        },
+  default: {
+    user: {
+      name: 'Public User',
+      email: 'public@localhost',
+      uuid: uuidV4(),
+    },
 
-        "maxDepth": 1,
-        "boundToBaseUrl": true,
-        "headless": true,
-        "crawlInterval": 1200,
-        "maxTimeout": 10000,
+    maxDepth: 2,
+    boundToBaseUrl: true,
+    headless: true,
+    crawlInterval: 1000,
+    maxTimeout: 30000,
+    concurrency: 3,
+    maxPages: 100,
+    excludePatterns: [],
 
-        "project": [
-            {
-                "name": "Project 1",
-                "description": "Project 1 description",
-                "baseUrl" : "https://newron.ai",
-                "visitedUrls": [],
-                "created": new Date().toISOString(),
-            }
-        ],
+    project: [],
 
-        "initiation": {
-            "date": new Date().toISOString(),
-            "last": new Date().toISOString(),
-        }
-    }
-}
+    initiation: {
+      date: new Date().toISOString(),
+      last: new Date().toISOString(),
+    },
+  },
+};
 
 module.exports = config;
