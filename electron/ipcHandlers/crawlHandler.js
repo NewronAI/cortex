@@ -6,28 +6,44 @@ const http = require('http');
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const InitiationHandler = require('../src/InitiationHandler');
+const OutputGenerator = require('../src/OutputGenerator');
+const CrawlStateManager = require('../src/CrawlStateManager');
 const os = require('os');
 
 puppeteer.use(StealthPlugin());
 
 let activeBrowser = null;
 let crawlAborted = false;
+let crawlPaused = false;
+let pauseResolve = null;
+let activeEvent = null;
+let activeCrawlState = null;
 
-ipcMain.on('stop-crawl', async () => {
-  crawlAborted = true;
-  if (activeBrowser) {
-    try {
-      await activeBrowser.close();
-    } catch (_) {
-      // browser may already be closed
-    }
-    activeBrowser = null;
-  }
-});
+const stateManager = new CrawlStateManager();
 
-ipcMain.on('crawl', async (event, arg) => {
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function downloadPdf(url, destPath) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
+    client.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const stream = fs.createWriteStream(destPath);
+      res.pipe(stream);
+      stream.on('finish', () => { stream.close(); resolve(); });
+      stream.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+async function runCrawl(event, { startUrl, resumeState }) {
   const initHandle = new InitiationHandler();
-  const config = initHandle.getConfig();
+  const config = resumeState?.config ?? initHandle.getConfig();
 
   const maxDepth = config.maxDepth ?? 1;
   const headless = config.headless ?? true;
@@ -37,30 +53,40 @@ ipcMain.on('crawl', async (event, arg) => {
   const concurrency = config.concurrency ?? 3;
   const excludePatterns = config.excludePatterns || [];
   const maxPages = config.maxPages ?? 100;
+  const outputFormats = config.outputFormats ?? { pdf: true, screenshot: false, html: false, markdown: false };
 
   crawlAborted = false;
+  crawlPaused = false;
+  pauseResolve = null;
+  activeEvent = event;
 
-  console.log('Crawl started:', arg);
+  const isResume = !!resumeState;
+  const parsedBaseURL = new URL(resumeState?.startUrl ?? startUrl);
+  const baseURL = resumeState?.baseURL ?? (parsedBaseURL.origin + parsedBaseURL.pathname);
+  const baseHostName = resumeState?.baseHostName ?? parsedBaseURL.hostname;
+  const outputDir = path.resolve(os.homedir(), 'cortex', 'output', baseHostName);
+  const outputGen = new OutputGenerator(outputDir, outputFormats);
+
+  console.log(isResume ? 'Crawl resumed:' : 'Crawl started:', baseURL);
 
   try {
-    const parsedBaseURL = new URL(arg);
-    const baseURL = parsedBaseURL.origin + parsedBaseURL.pathname;
-    const baseHostName = parsedBaseURL.hostname;
-    const outputDir = path.resolve(os.homedir(), 'cortex', 'output', baseHostName);
-
     activeBrowser = await puppeteer.launch({
       headless: headless ? 'new' : false,
     });
 
-    const toCrawlLinks = [{
+    const toCrawlLinks = resumeState?.queue ?? [{
       depth: 0,
       link: baseURL,
       crawled: false,
       skipped: false,
     }];
 
-    const visitedSet = new Set([baseURL]);
-    const startTime = Date.now();
+    const visitedSet = resumeState
+      ? new Set(resumeState.visited)
+      : new Set([baseURL]);
+
+    const elapsedOffset = resumeState?.stats?.elapsed ?? 0;
+    const startTime = Date.now() - elapsedOffset;
 
     function matchesExcludePattern(url) {
       return excludePatterns.some(pattern => {
@@ -81,28 +107,8 @@ ipcMain.on('crawl', async (event, arg) => {
       }
     }
 
-    function delay(ms) {
-      return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    function downloadPdf(url, destPath) {
-      return new Promise((resolve, reject) => {
-        const client = url.startsWith('https') ? https : http;
-        client.get(url, (res) => {
-          if (res.statusCode !== 200) {
-            reject(new Error(`HTTP ${res.statusCode}`));
-            return;
-          }
-          const stream = fs.createWriteStream(destPath);
-          res.pipe(stream);
-          stream.on('finish', () => { stream.close(); resolve(); });
-          stream.on('error', reject);
-        }).on('error', reject);
-      });
-    }
-
     async function crawlPage(url, currentDepth) {
-      if (crawlAborted) return [];
+      if (crawlAborted) return { newLinks: [], statusCode: null };
 
       let page;
       try {
@@ -124,27 +130,23 @@ ipcMain.on('crawl', async (event, arg) => {
           }
         });
 
-        await page.goto(url, {
+        const response = await page.goto(url, {
           timeout: maxTimeout,
           waitUntil: 'domcontentloaded',
         });
+        const statusCode = response ? response.status() : null;
 
         await Promise.race([
           page.waitForSelector('body', { timeout: 5000 }),
           delay(5000),
         ]);
 
-        // Save page as PDF
-        fs.mkdirSync(outputDir, { recursive: true });
-        const pdfName = `page_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.pdf`;
-        await page.pdf({
-          path: path.join(outputDir, pdfName),
-          format: 'A4',
-        });
+        // Generate output files (PDF, screenshot, HTML, markdown based on config)
+        await outputGen.generate(page);
 
         if (currentDepth >= maxDepth) {
           await page.close();
-          return [];
+          return { newLinks: [], statusCode };
         }
 
         // Extract links
@@ -154,7 +156,6 @@ ipcMain.on('crawl', async (event, arg) => {
         for (const link of rawLinks) {
           try {
             const parsed = new URL(link);
-            // Skip non-http(s) links, anchors, mailto, tel, javascript, etc.
             if (!parsed.protocol.startsWith('http')) continue;
             const cleanLink = parsed.origin + parsed.pathname;
 
@@ -174,7 +175,7 @@ ipcMain.on('crawl', async (event, arg) => {
 
         await delay(crawlInterval);
         await page.close();
-        return newLinks;
+        return { newLinks, statusCode };
       } catch (e) {
         if (page) await page.close().catch(() => {});
         throw e;
@@ -184,6 +185,7 @@ ipcMain.on('crawl', async (event, arg) => {
     function emitProgress(currentLink) {
       const crawled = toCrawlLinks.filter(l => l.crawled).length;
       const skipped = toCrawlLinks.filter(l => l.skipped).length;
+      const broken = toCrawlLinks.filter(l => l.broken).length;
 
       event.reply('crawl-progress', {
         currentPath: currentLink,
@@ -192,17 +194,37 @@ ipcMain.on('crawl', async (event, arg) => {
           total: toCrawlLinks.length,
           crawled,
           skipped,
+          broken,
           pending: toCrawlLinks.length - crawled - skipped,
           elapsed: Date.now() - startTime,
         },
       });
     }
 
+    // Store reference so pause handler can capture state
+    activeCrawlState = {
+      startUrl: resumeState?.startUrl ?? startUrl,
+      baseURL,
+      baseHostName,
+      config,
+      toCrawlLinks,
+      visitedSet,
+      startTime,
+      get crawlIndex() { return crawlIndex; },
+      get crawledCount() { return crawledCount; },
+    };
+
     // BFS crawl with concurrency
-    let crawlIndex = 0;
-    let crawledCount = 0;
+    let crawlIndex = resumeState?.crawlIndex ?? 0;
+    let crawledCount = resumeState?.crawledCount ?? 0;
 
     while (crawlIndex < toCrawlLinks.length && !crawlAborted) {
+      // Pause gate: block between batches if paused
+      if (crawlPaused) {
+        await new Promise(resolve => { pauseResolve = resolve; });
+        if (crawlAborted) break;
+      }
+
       // Collect a batch of uncrawled/unskipped links
       const batch = [];
       const batchIndices = [];
@@ -228,12 +250,16 @@ ipcMain.on('crawl', async (event, arg) => {
       for (let i = 0; i < results.length; i++) {
         const idx = batchIndices[i];
         if (results[i].status === 'fulfilled') {
-          const newLinks = results[i].value;
+          const { newLinks, statusCode } = results[i].value;
           toCrawlLinks.push(...newLinks);
           toCrawlLinks[idx].crawled = true;
+          toCrawlLinks[idx].statusCode = statusCode;
+          toCrawlLinks[idx].broken = statusCode >= 400;
           crawledCount++;
         } else {
           toCrawlLinks[idx].skipped = true;
+          toCrawlLinks[idx].statusCode = null;
+          toCrawlLinks[idx].broken = false;
           toCrawlLinks[idx].error = results[i].reason?.message || 'Unknown error';
           console.error(`Failed: ${toCrawlLinks[idx].link} - ${toCrawlLinks[idx].error}`);
         }
@@ -242,6 +268,7 @@ ipcMain.on('crawl', async (event, arg) => {
       emitProgress(toCrawlLinks[batchIndices[batchIndices.length - 1]]?.link);
     }
 
+    activeCrawlState = null;
     const aborted = crawlAborted;
     console.log(aborted ? 'Crawl aborted' : 'Crawl finished');
 
@@ -253,6 +280,7 @@ ipcMain.on('crawl', async (event, arg) => {
         total: toCrawlLinks.length,
         crawled: toCrawlLinks.filter(l => l.crawled).length,
         skipped: toCrawlLinks.filter(l => l.skipped).length,
+        broken: toCrawlLinks.filter(l => l.broken).length,
         elapsed: Date.now() - startTime,
       },
     });
@@ -262,6 +290,7 @@ ipcMain.on('crawl', async (event, arg) => {
       activeBrowser = null;
     }
   } catch (e) {
+    activeCrawlState = null;
     console.error('Crawl failed:', e);
     event.sender.send('crawl-failed', e.message);
     if (activeBrowser) {
@@ -270,5 +299,94 @@ ipcMain.on('crawl', async (event, arg) => {
     }
   }
 
+  activeEvent = null;
   crawlAborted = false;
+  crawlPaused = false;
+  pauseResolve = null;
+}
+
+// --- IPC Handlers ---
+
+ipcMain.on('stop-crawl', async () => {
+  crawlAborted = true;
+  if (crawlPaused && pauseResolve) {
+    crawlPaused = false;
+    pauseResolve();
+    pauseResolve = null;
+  }
+  stateManager.delete();
+  if (activeBrowser) {
+    try {
+      await activeBrowser.close();
+    } catch (_) {
+      // browser may already be closed
+    }
+    activeBrowser = null;
+  }
+});
+
+ipcMain.on('pause-crawl', () => {
+  if (!crawlPaused && activeCrawlState) {
+    crawlPaused = true;
+
+    const s = activeCrawlState;
+    stateManager.save({
+      version: 1,
+      savedAt: new Date().toISOString(),
+      startUrl: s.startUrl,
+      baseURL: s.baseURL,
+      baseHostName: s.baseHostName,
+      config: s.config,
+      queue: s.toCrawlLinks,
+      visited: Array.from(s.visitedSet),
+      crawledCount: s.crawledCount,
+      crawlIndex: s.crawlIndex,
+      stats: {
+        total: s.toCrawlLinks.length,
+        crawled: s.toCrawlLinks.filter(l => l.crawled).length,
+        skipped: s.toCrawlLinks.filter(l => l.skipped).length,
+        broken: s.toCrawlLinks.filter(l => l.broken).length,
+        elapsed: Date.now() - s.startTime,
+      },
+    });
+
+    if (activeEvent) {
+      activeEvent.reply('crawl-paused');
+    }
+  }
+});
+
+ipcMain.on('resume-crawl', () => {
+  if (crawlPaused && pauseResolve) {
+    crawlPaused = false;
+    stateManager.delete();
+    pauseResolve();
+    pauseResolve = null;
+    if (activeEvent) {
+      activeEvent.reply('crawl-resumed');
+    }
+  }
+});
+
+ipcMain.handle('check-saved-crawl', () => {
+  return stateManager.load();
+});
+
+ipcMain.on('resume-saved-crawl', async (event) => {
+  const savedState = stateManager.load();
+  if (!savedState) {
+    event.reply('crawl-failed', 'No saved crawl state found');
+    return;
+  }
+  stateManager.delete();
+  await runCrawl(event, { resumeState: savedState });
+});
+
+ipcMain.on('discard-saved-crawl', () => {
+  stateManager.delete();
+});
+
+ipcMain.on('crawl', async (event, arg) => {
+  stateManager.delete();
+  await runCrawl(event, { startUrl: arg });
 });

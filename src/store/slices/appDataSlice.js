@@ -7,12 +7,14 @@ const initialState = {
     total: 0,
     crawled: 0,
     skipped: 0,
+    broken: 0,
     pending: 0,
     elapsed: 0,
   },
-  crawlStatus: 'idle', // 'idle' | 'crawling' | 'finished' | 'failed' | 'stopped'
+  crawlStatus: 'idle', // 'idle' | 'crawling' | 'finished' | 'failed' | 'stopped' | 'paused'
   error: null,
   outputDir: null,
+  savedCrawl: null,
 };
 
 export const appDataSlice = createSlice({
@@ -44,6 +46,12 @@ export const appDataSlice = createSlice({
       state.crawlStatus = 'failed';
       state.error = action.payload;
     },
+    pauseCrawl(state) {
+      state.crawlStatus = 'paused';
+    },
+    resumeCrawl(state) {
+      state.crawlStatus = 'crawling';
+    },
     resetCrawl() {
       return initialState;
     },
@@ -55,6 +63,8 @@ export const {
   updateProgress,
   setCrawlFinished,
   setCrawlFailed,
+  pauseCrawl,
+  resumeCrawl,
   resetCrawl,
 } = appDataSlice.actions;
 

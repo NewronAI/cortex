@@ -1,6 +1,6 @@
 import { PaperAirplaneIcon, Cog6ToothIcon } from '@heroicons/react/24/outline';
 import { useDispatch } from 'react-redux';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { startCrawl } from '../store/slices/appDataSlice';
 
@@ -9,6 +9,24 @@ function EnterUrlPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [savedCrawl, setSavedCrawl] = useState(null);
+
+  useEffect(() => {
+    window.electronAPI.invoke('check-saved-crawl').then(state => {
+      if (state) setSavedCrawl(state);
+    });
+  }, []);
+
+  function handleResumeSaved() {
+    dispatch(startCrawl());
+    window.electronAPI.send('resume-saved-crawl');
+    navigate('/crawl');
+  }
+
+  function handleDiscardSaved() {
+    window.electronAPI.send('discard-saved-crawl');
+    setSavedCrawl(null);
+  }
 
   function handleFormSubmit(e) {
     e.preventDefault();
@@ -23,27 +41,49 @@ function EnterUrlPage() {
 
     setError(null);
     setLoading(true);
+    if (savedCrawl) {
+      window.electronAPI.send('discard-saved-crawl');
+      setSavedCrawl(null);
+    }
     dispatch(startCrawl());
     window.electronAPI.send('crawl', url);
     navigate('/crawl');
   }
 
   return (
-    <div className="py-16 sm:py-24 lg:py-32">
+    <div className="relative py-16 sm:py-24 lg:py-32">
+      <Link
+        to="/settings"
+        className="absolute top-4 right-4 rounded-full p-2 text-gray-400 hover:bg-white/10 hover:text-white transition-colors"
+        title="Settings"
+      >
+        <Cog6ToothIcon className="h-5 w-5" />
+      </Link>
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
         <div className="mx-auto max-w-2xl">
-          <div className="flex items-center justify-between">
-            <div>
-              <img alt="Newron Logo" src="newron-logo.png" width={100} className="my-2" />
+          {savedCrawl && (
+            <div className="mb-6 rounded-lg bg-indigo-500/10 border border-indigo-500/30 p-4">
+              <p className="text-sm text-gray-300">
+                A paused crawl was found for <strong className="text-white">{savedCrawl.baseURL}</strong>
+                {' '}({savedCrawl.stats?.crawled ?? 0} pages crawled)
+              </p>
+              <div className="mt-3 flex gap-3">
+                <button
+                  onClick={handleResumeSaved}
+                  className="flex items-center gap-2 rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 transition-colors"
+                >
+                  Resume Crawl
+                </button>
+                <button
+                  onClick={handleDiscardSaved}
+                  className="flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/20 transition-colors"
+                >
+                  Discard
+                </button>
+              </div>
             </div>
-            <Link
-              to="/settings"
-              className="flex items-center gap-2 rounded-md bg-white/5 px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white transition-colors"
-            >
-              <Cog6ToothIcon className="h-4 w-4" />
-              Settings
-            </Link>
-          </div>
+          )}
+          <img alt="Newron Logo" src="newron-logo.png" width={100} className="my-2" />
           <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl select-none">
             Cortex by Newron.ai
           </h2>

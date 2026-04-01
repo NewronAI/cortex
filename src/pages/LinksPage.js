@@ -19,6 +19,7 @@ const LinksPage = ({ title, desc, backLink = true }) => {
     if (filter === 'crawled') result = result.filter(l => l.crawled);
     else if (filter === 'skipped') result = result.filter(l => l.skipped);
     else if (filter === 'pending') result = result.filter(l => !l.crawled && !l.skipped);
+    else if (filter === 'broken') result = result.filter(l => l.broken);
 
     if (search) {
       const term = search.toLowerCase();
@@ -37,9 +38,9 @@ const LinksPage = ({ title, desc, backLink = true }) => {
       mimeType = 'application/json';
       extension = 'json';
     } else {
-      const header = 'URL,Depth,Crawled,Skipped,Error\n';
+      const header = 'URL,Depth,Crawled,Skipped,StatusCode,Broken,Error\n';
       const rows = filteredLinks.map(l =>
-        `"${l.link}",${l.depth},${l.crawled},${l.skipped || false},"${l.error || ''}"`
+        `"${l.link}",${l.depth},${l.crawled},${l.skipped || false},${l.statusCode || ''},${l.broken || false},"${l.error || ''}"`
       ).join('\n');
       content = header + rows;
       mimeType = 'text/csv';
@@ -80,7 +81,7 @@ const LinksPage = ({ title, desc, backLink = true }) => {
           {/* Filter and search bar */}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <div className="flex rounded-md bg-white/5 p-0.5">
-              {['all', 'crawled', 'skipped', 'pending'].map((f) => (
+              {['all', 'crawled', 'skipped', 'pending', 'broken'].map((f) => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
@@ -142,9 +143,13 @@ const LinksPage = ({ title, desc, backLink = true }) => {
                           {link.link}
                         </td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm">
-                          {link.crawled ? (
+                          {link.broken ? (
+                            <span className="inline-flex items-center rounded-full bg-red-400/10 px-2 py-1 text-xs font-medium text-red-400 ring-1 ring-inset ring-red-400/20">
+                              {link.statusCode || 'Error'}
+                            </span>
+                          ) : link.crawled ? (
                             <span className="inline-flex items-center rounded-full bg-green-400/10 px-2 py-1 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-400/20">
-                              Crawled
+                              {link.statusCode || 'OK'}
                             </span>
                           ) : link.skipped ? (
                             <span className="inline-flex items-center rounded-full bg-amber-400/10 px-2 py-1 text-xs font-medium text-amber-400 ring-1 ring-inset ring-amber-400/20" title={link.error || ''}>

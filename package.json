@@ -4,17 +4,26 @@
   "version": "0.2.0",
   "private": true,
   "main": "electron/main.js",
+  "bin": {
+    "cortex": "./cli/cortex.js"
+  },
   "author": "Shubham Shekhar",
   "license": "MIT",
   "homepage": "./",
   "dependencies": {
     "@craco/craco": "^7.1.0",
     "@heroicons/react": "^2.2.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@reduxjs/toolkit": "^2.5.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
     "@testing-library/user-event": "^14.5.2",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "commander": "^14.0.3",
     "electron-squirrel-startup": "^1.0.1",
+    "log-update": "^7.2.0",
+    "ora": "^9.3.0",
     "puppeteer": "^23.11.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
@@ -23,9 +32,13 @@
     "react-redux": "^9.2.0",
     "react-router-dom": "^6.28.0",
     "react-scripts": "5.0.1",
-    "uuid": "^10.0.0"
+    "turndown": "^7.2.2",
+    "uuid": "^10.0.0",
+    "zod": "^4.3.6"
   },
   "scripts": {
+    "cli": "node cli/cortex.js",
+    "build:cli": "bun build --minify --target=node --format=cjs --outfile=dist/cortex-cli.cjs --external puppeteer --external puppeteer-extra --external puppeteer-extra-plugin-stealth --external turndown cli/cortex.js",
     "start": "electron-forge start",
     "build": "craco build",
     "test": "react-scripts test",

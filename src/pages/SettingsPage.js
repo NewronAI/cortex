@@ -165,6 +165,36 @@ const SettingsPage = () => {
           </label>
         </div>
 
+        {/* Output Formats */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300">Output Formats</label>
+          <p className="text-xs text-gray-500 mt-0.5">Choose which formats to generate for each crawled page</p>
+          <div className="mt-2 space-y-3">
+            {[
+              { key: 'pdf', label: 'PDF', desc: 'Save pages as A4 PDF documents' },
+              { key: 'screenshot', label: 'Screenshot (PNG)', desc: 'Full-page screenshot as PNG image' },
+              { key: 'html', label: 'HTML Snapshot', desc: 'Save rendered HTML source' },
+              { key: 'markdown', label: 'Markdown', desc: 'Convert page content to clean Markdown' },
+            ].map(({ key, label, desc }) => (
+              <label key={key} className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={config.outputFormats?.[key] ?? (key === 'pdf')}
+                  onChange={(e) => updateField('outputFormats', {
+                    ...(config.outputFormats ?? { pdf: true, screenshot: false, html: false, markdown: false }),
+                    [key]: e.target.checked,
+                  })}
+                  className="h-4 w-4 rounded border-gray-600 bg-white/5 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0"
+                />
+                <div>
+                  <span className="text-sm font-medium text-gray-300">{label}</span>
+                  <p className="text-xs text-gray-500">{desc}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
         {/* Exclude Patterns */}
         <div>
           <label className="block text-sm font-medium text-gray-300">URL Exclude Patterns</label>

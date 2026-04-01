@@ -3,6 +3,11 @@ const { contextBridge, ipcRenderer } = require('electron');
 const SEND_CHANNELS = [
   'crawl',
   'stop-crawl',
+  'pause-crawl',
+  'resume-crawl',
+  'resume-saved-crawl',
+  'discard-saved-crawl',
+  'check-saved-crawl',
   'window-minimize',
   'window-maximize',
   'window-close',
@@ -16,6 +21,8 @@ const RECEIVE_CHANNELS = [
   'crawl-progress',
   'crawl-finished',
   'crawl-failed',
+  'crawl-paused',
+  'crawl-resumed',
   'config-data',
   'output-path',
 ];

@@ -7,11 +7,15 @@ import {
   FolderOpenIcon,
   CheckCircleIcon,
   XCircleIcon,
+  PauseCircleIcon,
+  PlayCircleIcon,
 } from '@heroicons/react/20/solid';
 import {
   updateProgress,
   setCrawlFinished,
   setCrawlFailed,
+  pauseCrawl,
+  resumeCrawl,
   resetCrawl,
 } from '../store/slices/appDataSlice';
 import { Link, useNavigate } from 'react-router-dom';
@@ -40,8 +44,10 @@ const CrawlingStatusPage = () => {
 
   const crawledLinks = useMemo(() => links.filter(l => l.crawled), [links]);
   const skippedLinks = useMemo(() => links.filter(l => l.skipped), [links]);
+  const brokenLinks = useMemo(() => links.filter(l => l.broken), [links]);
 
   const isCrawling = crawlStatus === 'crawling';
+  const isPaused = crawlStatus === 'paused';
   const isFinished = crawlStatus === 'finished' || crawlStatus === 'stopped';
   const isFailed = crawlStatus === 'failed';
 
@@ -74,6 +80,18 @@ const CrawlingStatusPage = () => {
       })
     );
 
+    removers.push(
+      window.electronAPI.on('crawl-paused', () => {
+        dispatch(pauseCrawl());
+      })
+    );
+
+    removers.push(
+      window.electronAPI.on('crawl-resumed', () => {
+        dispatch(resumeCrawl());
+      })
+    );
+
     return () => {
       removers.forEach(remove => remove?.());
     };
@@ -81,6 +99,14 @@ const CrawlingStatusPage = () => {
 
   const handleStop = useCallback(() => {
     window.electronAPI.send('stop-crawl');
+  }, []);
+
+  const handlePause = useCallback(() => {
+    window.electronAPI.send('pause-crawl');
+  }, []);
+
+  const handleResume = useCallback(() => {
+    window.electronAPI.send('resume-crawl');
   }, []);
 
   const handleNewCrawl = useCallback(() => {
@@ -103,9 +129,9 @@ const CrawlingStatusPage = () => {
       mimeType = 'application/json';
       extension = 'json';
     } else {
-      const header = 'URL,Depth,Crawled,Skipped,Error\n';
+      const header = 'URL,Depth,Crawled,Skipped,StatusCode,Broken,Error\n';
       const rows = links.map(l =>
-        `"${l.link}",${l.depth},${l.crawled},${l.skipped || false},"${l.error || ''}"`
+        `"${l.link}",${l.depth},${l.crawled},${l.skipped || false},${l.statusCode || ''},${l.broken || false},"${l.error || ''}"`
       ).join('\n');
       content = header + rows;
       mimeType = 'text/csv';
@@ -132,7 +158,9 @@ const CrawlingStatusPage = () => {
                 ? (crawlStatus === 'stopped' ? 'Crawl Stopped' : 'Crawl Complete')
                 : isFailed
                   ? 'Crawl Failed'
-                  : 'Cortex is Crawling'}
+                  : isPaused
+                    ? 'Crawl Paused'
+                    : 'Cortex is Crawling'}
             </h2>
             {isFailed && error && (
               <p className="mt-2 text-sm text-red-400">{error}</p>
@@ -147,7 +175,7 @@ const CrawlingStatusPage = () => {
           </div>
 
           {/* Progress bar */}
-          {isCrawling && (
+          {(isCrawling || isPaused) && (
             <div className="mt-4 mx-auto max-w-lg">
               <div className="flex justify-between text-xs text-gray-400 mb-1">
                 <span>{progressPercent}% complete</span>
@@ -165,12 +193,36 @@ const CrawlingStatusPage = () => {
           {/* Action buttons */}
           <div className="mt-4 flex items-center justify-center gap-3">
             {isCrawling && (
-              <button
-                onClick={handleStop}
-                className="flex items-center gap-2 rounded-md bg-red-500/20 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
-              >
-                <StopCircleIcon className="h-4 w-4" /> Stop Crawl
-              </button>
+              <>
+                <button
+                  onClick={handlePause}
+                  className="flex items-center gap-2 rounded-md bg-amber-500/20 px-3 py-2 text-sm font-medium text-amber-400 hover:bg-amber-500/30 transition-colors"
+                >
+                  <PauseCircleIcon className="h-4 w-4" /> Pause
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="flex items-center gap-2 rounded-md bg-red-500/20 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                >
+                  <StopCircleIcon className="h-4 w-4" /> Stop Crawl
+                </button>
+              </>
+            )}
+            {isPaused && (
+              <>
+                <button
+                  onClick={handleResume}
+                  className="flex items-center gap-2 rounded-md bg-indigo-500 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-400 transition-colors"
+                >
+                  <PlayCircleIcon className="h-4 w-4" /> Resume
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="flex items-center gap-2 rounded-md bg-red-500/20 px-3 py-2 text-sm font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                >
+                  <StopCircleIcon className="h-4 w-4" /> Stop Crawl
+                </button>
+              </>
             )}
             {(isFinished || isFailed) && (
               <>
@@ -196,10 +248,15 @@ const CrawlingStatusPage = () => {
             )}
           </div>
 
-          {/* Spinner */}
+          {/* Spinner / Paused icon */}
           {isCrawling && (
             <div className="w-full flex items-center mt-4">
               <ArrowPathIcon className="h-5 animate-spin mx-auto text-indigo-400" />
+            </div>
+          )}
+          {isPaused && (
+            <div className="w-full flex items-center mt-4">
+              <PauseCircleIcon className="h-6 mx-auto text-amber-400" />
             </div>
           )}
           {isFinished && (
@@ -214,7 +271,7 @@ const CrawlingStatusPage = () => {
           )}
 
           {/* Stats grid */}
-          <dl className="mt-6 grid grid-cols-1 gap-0.5 overflow-hidden rounded-2xl text-center sm:grid-cols-2 lg:grid-cols-5">
+          <dl className="mt-6 grid grid-cols-1 gap-0.5 overflow-hidden rounded-2xl text-center sm:grid-cols-2 lg:grid-cols-6">
             <div className="flex flex-col bg-white/5 p-6">
               <dt className="text-sm font-semibold leading-6 text-gray-300">Currently Crawling</dt>
               <dd className="order-first text-lg font-semibold tracking-tight text-white truncate" title={currentPath}>
@@ -237,6 +294,12 @@ const CrawlingStatusPage = () => {
               <div className="flex flex-col bg-white/5 p-6 hover:bg-white/10 transition-colors">
                 <dt className="text-sm font-semibold leading-6 text-gray-300">Skipped</dt>
                 <dd className="order-first text-3xl font-semibold tracking-tight text-amber-400">{skippedLinks.length}</dd>
+              </div>
+            </Link>
+            <Link to="/links">
+              <div className="flex flex-col bg-white/5 p-6 hover:bg-white/10 transition-colors">
+                <dt className="text-sm font-semibold leading-6 text-gray-300">Broken</dt>
+                <dd className="order-first text-3xl font-semibold tracking-tight text-red-400">{brokenLinks.length}</dd>
               </div>
             </Link>
             <div className="flex flex-col bg-white/5 p-6">

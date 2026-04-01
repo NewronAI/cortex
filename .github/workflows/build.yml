@@ -1,0 +1,303 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BUN_VERSION: '1.3.10'
+  NODE_VERSION: '20'
+
+jobs:
+  # ─── CLI: bundled Node.js scripts ────────────────────────────────
+  cli-bundle:
+    name: CLI Bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Bundle CLI
+        run: |
+          bun build --minify --target=node --format=cjs \
+            --outfile=dist/cortex-cli.cjs \
+            --external puppeteer --external puppeteer-extra \
+            --external puppeteer-extra-plugin-stealth --external turndown \
+            cli/cortex.js
+
+      - name: Bundle MCP server
+        run: |
+          bun build --minify --target=node --format=cjs \
+            --outfile=dist/cortex-mcp.cjs \
+            --external puppeteer --external puppeteer-extra \
+            --external puppeteer-extra-plugin-stealth --external turndown \
+            cli/mcp-server.js
+
+      - name: Verify bundles
+        run: |
+          node dist/cortex-cli.cjs --help
+          echo "CLI bundle OK"
+          ls -lh dist/
+
+      - name: Create CLI tarball
+        run: |
+          mkdir -p dist/cortex-cli
+          cp dist/cortex-cli.cjs dist/cortex-cli/
+          cp dist/cortex-mcp.cjs dist/cortex-cli/
+          cp package.json dist/cortex-cli/
+          cp README.md dist/cortex-cli/
+          cat > dist/cortex-cli/install.sh << 'SCRIPT'
+          #!/bin/bash
+          echo "Installing Cortex CLI dependencies..."
+          npm install puppeteer puppeteer-extra puppeteer-extra-plugin-stealth turndown
+          echo "Done! Run with: node cortex-cli.cjs"
+          SCRIPT
+          chmod +x dist/cortex-cli/install.sh
+          tar -czf dist/cortex-cli-bundle.tar.gz -C dist cortex-cli
+
+      - name: Upload CLI bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-cli-bundle
+          path: dist/cortex-cli-bundle.tar.gz
+
+  # ─── CLI: Bun standalone executables (per-platform) ──────────────
+  cli-binary:
+    name: CLI Binary — ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            label: linux-x64
+            ext: ''
+          - os: ubuntu-latest
+            target: bun-linux-arm64
+            label: linux-arm64
+            ext: ''
+          - os: macos-latest
+            target: bun-darwin-arm64
+            label: darwin-arm64
+            ext: ''
+          - os: macos-latest
+            target: bun-darwin-x64
+            label: darwin-x64
+            ext: ''
+          - os: ubuntu-latest
+            target: bun-windows-x64
+            label: windows-x64
+            ext: '.exe'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build CLI binary
+        run: |
+          bun build --compile \
+            --target=${{ matrix.target }} \
+            --minify \
+            --outfile=dist/cortex-${{ matrix.label }}${{ matrix.ext }} \
+            --external puppeteer --external puppeteer-extra \
+            --external puppeteer-extra-plugin-stealth --external turndown \
+            cli/cortex.js
+
+      - name: Build MCP server binary
+        run: |
+          bun build --compile \
+            --target=${{ matrix.target }} \
+            --minify \
+            --outfile=dist/cortex-mcp-${{ matrix.label }}${{ matrix.ext }} \
+            --external puppeteer --external puppeteer-extra \
+            --external puppeteer-extra-plugin-stealth --external turndown \
+            cli/mcp-server.js
+
+      - name: Upload CLI binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-cli-${{ matrix.label }}
+          path: |
+            dist/cortex-${{ matrix.label }}${{ matrix.ext }}
+            dist/cortex-mcp-${{ matrix.label }}${{ matrix.ext }}
+
+  # ─── Electron: macOS ─────────────────────────────────────────────
+  electron-macos:
+    name: Electron — macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build React frontend
+        run: bun run build
+
+      - name: Make Electron distributables
+        run: bun run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-macos-dmg
+          path: out/make/*.dmg
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-macos-zip
+          path: out/make/zip/**/*.zip
+
+  # ─── Electron: Windows ───────────────────────────────────────────
+  electron-windows:
+    name: Electron — Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build React frontend
+        run: bun run build
+
+      - name: Make Electron distributables
+        run: bun run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Squirrel installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-windows-squirrel
+          path: out/make/squirrel.windows/**/*Setup*.exe
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-windows-zip
+          path: out/make/zip/**/*.zip
+
+  # ─── Electron: Linux ─────────────────────────────────────────────
+  electron-linux:
+    name: Electron — Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg fakeroot rpm
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build React frontend
+        run: bun run build
+
+      - name: Make Electron distributables
+        run: bun run make
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload DEB
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-linux-deb
+          path: out/make/deb/**/*.deb
+
+      - name: Upload RPM
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-linux-rpm
+          path: out/make/rpm/**/*.rpm
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: cortex-electron-linux-zip
+          path: out/make/zip/**/*.zip
+
+  # ─── Release ─────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    needs: [cli-bundle, cli-binary, electron-macos, electron-windows, electron-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List all artifacts
+        run: find artifacts -type f | sort
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/cortex-cli-bundle/*.tar.gz
+            artifacts/cortex-cli-linux-x64/*
+            artifacts/cortex-cli-linux-arm64/*
+            artifacts/cortex-cli-darwin-arm64/*
+            artifacts/cortex-cli-darwin-x64/*
+            artifacts/cortex-cli-windows-x64/*
+            artifacts/cortex-electron-macos-dmg/*.dmg
+            artifacts/cortex-electron-macos-zip/**/*.zip
+            artifacts/cortex-electron-windows-squirrel/**/*.exe
+            artifacts/cortex-electron-windows-zip/**/*.zip
+            artifacts/cortex-electron-linux-deb/**/*.deb
+            artifacts/cortex-electron-linux-rpm/**/*.rpm
+            artifacts/cortex-electron-linux-zip/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

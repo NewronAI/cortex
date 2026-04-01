@@ -16,6 +16,12 @@ const config = {
     concurrency: 3,
     maxPages: 100,
     excludePatterns: [],
+    outputFormats: {
+      pdf: true,
+      screenshot: false,
+      html: false,
+      markdown: false,
+    },
 
     project: [],
 
